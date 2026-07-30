@@ -12,13 +12,6 @@ toggle.addEventListener('click', () => {
   toggle.setAttribute('aria-expanded', open);
 });
 
-links.querySelectorAll('a').forEach(a =>
-  a.addEventListener('click', () => {
-    links.classList.remove('open');
-    toggle.setAttribute('aria-expanded', 'false');
-  })
-);
-
 // ---------- Sticky nav shadow ----------
 const nav = document.getElementById('nav');
 window.addEventListener('scroll', () => {
@@ -73,21 +66,58 @@ const countIO = new IntersectionObserver(entries => {
 
 document.querySelectorAll('.count').forEach(el => countIO.observe(el));
 
-// ---------- Active nav link highlighting ----------
-const sections = document.querySelectorAll('section[id], header[id]');
+// ---------- Single-page navigation ----------
+// Only one "page" (the hero, or one section) is ever visible at a time.
+// Sections are hidden by default via CSS; clicking a nav link shows exactly
+// one and hides the rest — there is no continuous scroll between pages.
 const navAnchors = document.querySelectorAll('.nav-links a[href^="#"]');
+const allSections = document.querySelectorAll('section[id]');
 
-const sectionIO = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      navAnchors.forEach(a => {
-        a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id);
-      });
-    }
+function showPage(id, opts = {}) {
+  const target = id && id !== 'top' ? document.getElementById(id) : null;
+  const isSection = target && target.tagName === 'SECTION';
+
+  allSections.forEach(el => el.classList.remove('page-active'));
+
+  if (isSection) {
+    document.body.classList.add('showing-section');
+    target.classList.add('page-active');
+  } else {
+    document.body.classList.remove('showing-section');
+  }
+
+  navAnchors.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + (isSection ? id : 'top'));
   });
-}, { rootMargin: '-40% 0px -55% 0px' });
 
-sections.forEach(s => sectionIO.observe(s));
+  if (!opts.skipScroll) {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+  if (!opts.skipHistory) {
+    try { history.pushState(null, '', isSection ? '#' + id : '#top'); }
+    catch (err) { /* ignore — some local file:// contexts restrict history API */ }
+  }
+
+  links.classList.remove('open');
+  toggle.setAttribute('aria-expanded', 'false');
+}
+
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  const id = a.getAttribute('href').slice(1);
+  if (id === 'top' || document.getElementById(id)) {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      showPage(id);
+    });
+  }
+});
+
+window.addEventListener('popstate', () => {
+  showPage(location.hash ? location.hash.slice(1) : 'top', { skipHistory: true });
+});
+
+// Initial load: honor a deep link (e.g. shared #experience URL), default to hero
+showPage(location.hash ? location.hash.slice(1) : 'top', { skipScroll: true, skipHistory: true });
 
 // ---------- Back to top ----------
 const toTop = document.getElementById('toTop');
@@ -98,3 +128,4 @@ window.addEventListener('scroll', () => {
 toTop.addEventListener('click', () => {
   window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
 });
+
